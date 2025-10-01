@@ -16,6 +16,7 @@
     <div class="container form-container">
         <h2 class="mb-4">Add Product</h2>
         <form id="productForm">
+            @csrf
             <div class="mb-3">
                 <label for="name" class="form-label">Product Name</label>
                 <input type="text" class="form-control" id="name" name="name" required>
@@ -117,24 +118,44 @@
         }
 
         form.addEventListener('submit', e => {
-            e.preventDefault();
-            const formData = new FormData(form);
-            fetch('/products', {
-                method: 'POST',
-                body: new URLSearchParams(formData),
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        form.reset();
-                        loadProducts();
-                    } else {
-                        alert('Validation failed: ' + JSON.stringify(data.errors));
-                    }
-                })
-                .catch(error => console.error('Error submitting form:', error));
-        });
+    e.preventDefault();
+    console.log('Form submitted:', {
+        name: document.getElementById('name').value,
+        quantity: document.getElementById('quantity').value,
+        price: document.getElementById('price').value
+    });
+    const formData = new FormData(form);
+    const csrfToken = document.querySelector('input[name="_token"]').value;
+    fetch('/products', {
+        method: 'POST',
+        body: new URLSearchParams(formData),
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRF-TOKEN': csrfToken // Explicitly send CSRF token
+        }
+    })
+        .then(response => {
+            console.log('Raw response status:', response.status);
+            if (!response.ok) {
+                if (response.status === 419) {
+                    console.error('Session expired, refreshing page');
+                    location.reload(); // Refresh to get a new token
+                }
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Server response:', data);
+            if (data.success) {
+                form.reset();
+                loadProducts();
+            } else {
+                alert('Validation failed: ' + JSON.stringify(data.errors));
+            }
+        })
+        .catch(error => console.error('Fetch error:', error));
+});
 
         tableBody.addEventListener('click', e => {
             if (e.target.classList.contains('edit-btn')) {
@@ -149,25 +170,62 @@
         });
 
         editForm.addEventListener('submit', e => {
-            e.preventDefault();
-            const formData = new FormData(editForm);
-            const id = document.getElementById('editId').value;
-            fetch(`/products/${id}`, {
-                method: 'PUT',
-                body: new URLSearchParams(formData),
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        editModal.hide();
-                        loadProducts();
-                    } else {
-                        alert('Validation failed: ' + JSON.stringify(data.errors));
-                    }
-                })
-                .catch(error => console.error('Error updating product:', error));
+    e.preventDefault();
+    const id = document.getElementById('editId').value;
+    const name = document.getElementById('editName').value.trim();
+    const quantity = document.getElementById('editQuantity').value.trim();
+    const price = document.getElementById('editPrice').value.trim();
+    const data = {
+        name: name,
+        quantity: quantity,
+        price: price,
+        _token: document.querySelector('input[name="_token"]').value
+    };
+    const params = new URLSearchParams(data).toString();
+    console.log('Raw request data:', params); // Log the exact string being sent
+    fetch(`/products/${id}`, {
+        method: 'PUT',
+        body: params,
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+        }
+    })
+        .then(response => {
+            console.log('Edit response status:', response.status);
+            if (!response.ok) {
+                if (response.status === 419) {
+                    console.error('Session expired, refreshing page');
+                    location.reload();
+                }
+                return response.json().then(errors => {
+                    throw errors;
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Edit server response:', data);
+            if (data.success) {
+                editModal.hide();
+                loadProducts();
+            } else {
+                alert('Validation failed: ' + JSON.stringify(data.errors));
+            }
+        })
+        .catch(error => {
+            console.error('Edit fetch error:', error);
+            if (error.errors) {
+                let errorMessage = 'Validation errors:\n';
+                for (let field in error.errors) {
+                    errorMessage += `${field}: ${error.errors[field][0]}\n`;
+                }
+                alert(errorMessage);
+            } else {
+                alert('An unexpected error occurred');
+            }
         });
+});
 
         loadProducts(); // Initial load
     </script>

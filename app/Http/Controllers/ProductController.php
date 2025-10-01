@@ -50,31 +50,32 @@ class ProductController extends Controller
     }
 
     public function update(Request $request, $id)
-    {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'quantity' => 'required|integer|min:0',
-            'price' => 'required|numeric|min:0',
-        ]);
+{
+    \Log::info('Received update data:', $request->all());
+    $validator = Validator::make($request->all(), [
+        'name' => 'required|string|max:255',
+        'quantity' => 'required|numeric|min:0',
+        'price' => 'required|numeric|min:0',
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $data = $this->loadData();
-        foreach ($data as &$product) {
-            if ($product['id'] == $id) {
-                $product['name'] = $request->name;
-                $product['quantity'] = (int) $request->quantity;
-                $product['price'] = (float) $request->price;
-                $product['total'] = (int) $request->quantity * (float) $request->price;
-                break;
-            }
-        }
-        $this->saveData($data);
-
-        return response()->json(['success' => true, 'product' => $product]);
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
     }
+
+    $data = $this->loadData();
+    foreach ($data as &$product) {
+        if ($product['id'] == $id) {
+            $product['name'] = $request->name;
+            $product['quantity'] = (int) $request->quantity;
+            $product['price'] = (float) $request->price;
+            $product['total'] = $product['quantity'] * $product['price'];
+            break;
+        }
+    }
+    $this->saveData($data);
+
+    return response()->json(['success' => true, 'product' => $product]);
+}
 
     protected function loadData()
     {
